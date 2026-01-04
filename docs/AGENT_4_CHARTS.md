@@ -529,6 +529,39 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ---
 
+## ⚠️ BUG 修復任務
+
+### 當前 Bug 狀態說明
+
+**好消息**: 目前的 3 個 bug 都不直接影響 Agent 4 的圖表模組開發！
+
+**Bug 說明**:
+1. **Bug 1** - 股票名稱更新問題：由 Agent 2 和 Agent 3 處理
+2. **Bug 2** - 資料存儲問題：由 Agent 2 處理
+3. **Bug 3** - Redis 功能：由 Agent 1 和 Agent 3 處理（低優先級）
+
+**Agent 4 可以照常開發**:
+- 圖表模組使用模擬資料即可獨立測試
+- 等 Agent 2 完成後，直接整合真實資料即可
+- 不需要等待其他 bug 修復即可開始工作
+
+**建議開發順序**:
+1. 先完成 K 線圖功能（使用模擬資料測試）
+2. 確保圖表樣式符合 `real_time_panel.py` 的風格
+3. 等 Agent 2 完成 `data_fetcher.py` 後，整合真實資料
+4. 與 Agent 3 的 `selection_page.py` 整合測試
+
+**整合時機**:
+- 當 Agent 2 完成 Bug 1 和 Bug 2 的修復後
+- 在 `create_candlestick_chart()` 函數中取消註解：
+  ```python
+  from modules.data_fetcher import fetch_stock_data, calculate_technical_indicators
+  ```
+
+**優先級**: ✅ 無需等待，可立即開始開發
+
+---
+
 ## 注意事項
 
 1. ⚠️ **使用 Plotly**：參考 `real_time_panel.py` 的圖表風格

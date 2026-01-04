@@ -578,6 +578,197 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ---
 
+## ⚠️ BUG 修復任務
+
+### Bug 1: 股票名稱不會更新
+
+**問題描述**:
+- 當輸入不同的股票代號時，股票名稱不會正確更新
+- 目前程式碼使用 `TWMarket().get_name()` 但應該參考 Finlab 文件使用 `data.get('company_basic_info')`
+
+**文件參考**: https://ai.finlab.tw/database
+- 公司簡稱：`data.get('company_basic_info')` 回傳 str
+
+**修復任務**:
+
+在 `modules/data_fetcher.py` 的 `fetch_stock_data()` 函數中修改股票名稱取得邏輯：
+
+```python
+# 取得股票名稱 - 優先使用 company_basic_info
+try:
+    company_info = data.get('company_basic_info')
+    stock_names = {}
+    for code in stock_codes:
+        if code in company_info.index:
+            stock_names[code] = company_info.loc[code]
+        else:
+            stock_names[code] = code  # 如果找不到，就使用代碼本身
+except Exception as e:
+    print(f"無法取得 company_basic_info，改用 TWMarket: {str(e)}")
+    # 備用方案：使用 TWMarket
+    from finlab.data import TWMarket
+    market = TWMarket()
+    stock_names = {code: market.get_name(code) for code in stock_codes if code in market.get_stocks()}
+```
+
+**優先級**: 🔴 高
+
+---
+
+### Bug 2: 收盤價不會自動更新，需要將資料存儲到 data 資料夾
+
+**問題描述**:
+- 個股的收盤價、開盤價、成交量等資料沒有更新機制
+- 應該根據 finlab 資料更新，並將資料存儲在 `data` 資料夾中以供後續使用
+
+**修復任務**:
+
+#### 1. 建立資料存儲功能
+
+在 `modules/data_fetcher.py` 中新增資料存儲函數：
+
+```python
+import os
+import pickle
+from datetime import datetime
+
+DATA_DIR = 'data'
+
+def save_stock_data(stock_data: dict, filename: str = None):
+    """
+    將股票資料存儲到 data 資料夾
+
+    Args:
+        stock_data: 股票資料字典（來自 fetch_stock_data）
+        filename: 檔案名稱，預設使用日期
+    """
+    # 建立 data 資料夾
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+        print(f"✅ 建立資料夾: {DATA_DIR}")
+
+    # 預設檔案名稱：使用今天日期
+    if filename is None:
+        filename = f"stock_data_{datetime.now().strftime('%Y%m%d')}.pkl"
+
+    filepath = os.path.join(DATA_DIR, filename)
+
+    try:
+        with open(filepath, 'wb') as f:
+            pickle.dump(stock_data, f)
+        print(f"✅ 資料已存儲: {filepath}")
+    except Exception as e:
+        print(f"❌ 資料存儲失敗: {str(e)}")
+
+
+def load_stock_data(filename: str = None) -> dict:
+    """
+    從 data 資料夾載入股票資料
+
+    Args:
+        filename: 檔案名稱，預設使用今天日期
+
+    Returns:
+        dict: 股票資料字典，如果檔案不存在則返回 None
+    """
+    if filename is None:
+        filename = f"stock_data_{datetime.now().strftime('%Y%m%d')}.pkl"
+
+    filepath = os.path.join(DATA_DIR, filename)
+
+    if not os.path.exists(filepath):
+        print(f"⚠️ 檔案不存在: {filepath}")
+        return None
+
+    try:
+        with open(filepath, 'rb') as f:
+            stock_data = pickle.load(f)
+        print(f"✅ 資料已載入: {filepath}")
+        return stock_data
+    except Exception as e:
+        print(f"❌ 資料載入失敗: {str(e)}")
+        return None
+
+
+def fetch_and_save_stock_data(stock_codes: list, force_update: bool = False) -> dict:
+    """
+    取得股票資料並存儲（帶快取功能）
+
+    Args:
+        stock_codes: 股票代碼清單
+        force_update: 是否強制更新資料（忽略快取）
+
+    Returns:
+        dict: 股票資料字典
+    """
+    # 如果不強制更新，先嘗試載入今日快取
+    if not force_update:
+        cached_data = load_stock_data()
+        if cached_data is not None:
+            print("✅ 使用快取資料")
+            return cached_data
+
+    # 從 Finlab 取得最新資料
+    print("📥 從 Finlab 取得最新資料...")
+    stock_data = fetch_stock_data(stock_codes)
+
+    # 存儲資料
+    if stock_data is not None:
+        save_stock_data(stock_data)
+
+    return stock_data
+```
+
+#### 2. 更新 `fetch_stock_data()` 函數
+
+確保每次取得資料時都使用最新的 Finlab 資料：
+
+```python
+# 在函數開頭加入資料更新提示
+def fetch_stock_data(stock_codes: list) -> dict:
+    """
+    取得指定股票清單的所有必要資料（總是取得最新資料）
+    ...
+    """
+    print(f"📊 正在取得 {len(stock_codes)} 檔股票的最新資料...")
+
+    try:
+        # 取得價格資料（Finlab 會自動更新到最新日期）
+        close = data.get('price:收盤價')
+        volume = data.get('price:成交股數') / 1000
+        amount = data.get('price:成交金額')
+
+        # ... 其餘程式碼保持不變
+```
+
+#### 3. 將函數加入匯出清單
+
+```python
+__all__ = [
+    'fetch_stock_data',
+    'fetch_and_save_stock_data',  # 新增
+    'save_stock_data',             # 新增
+    'load_stock_data',             # 新增
+    'calculate_technical_indicators',
+    'load_industry_data',
+    'calculate_industry_trend',
+    'get_top_industries'
+]
+```
+
+**優先級**: 🔴 高
+
+**注意事項**:
+1. 使用 pickle 格式存儲可以保留 DataFrame 結構
+2. 也可以選擇使用 CSV 格式（更易讀但效能較差）：
+   ```python
+   # CSV 版本
+   close.to_csv(os.path.join(DATA_DIR, f'close_{date}.csv'))
+   ```
+3. 定期清理舊的快取檔案（例如保留最近 7 天）
+
+---
+
 ## 注意事項
 
 1. ⚠️ **確保 Finlab API Key 已設定**：檢查 `.env` 檔案

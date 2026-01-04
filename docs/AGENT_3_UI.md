@@ -548,6 +548,189 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ---
 
+## ⚠️ BUG 修復任務
+
+### Bug 1: 股票名稱不會更新（UI 部分）
+
+**問題描述**:
+- `layouts/selection_page.py` 第 149 行使用硬編碼的股票名稱 `['台積電', '聯發科', '大立光']`
+- 需要使用 Agent 2 提供的 `stock_data['stock_names']` 來動態顯示股票名稱
+
+**修復任務**:
+
+在 `layouts/selection_page.py` 的 `calculate_scores()` callback 函數中：
+
+#### 1. 取消註解並啟用真實資料
+
+將第 130-144 行的註解程式碼取消註解：
+
+```python
+# 使用真實資料（Agent 2 完成後）
+from modules.data_fetcher import fetch_stock_data, calculate_technical_indicators, load_industry_data, calculate_industry_trend, get_top_industries
+from modules.scoring import calculate_batch_scores
+
+# 取得資料
+stock_data = fetch_stock_data(stock_codes)
+if stock_data is None:
+    return None, html.Div("❌ 無法取得股票資料", style={'color': 'red'})
+
+tech_indicators = calculate_technical_indicators(stock_data['close'])
+
+# 計算產業趨勢
+industry_df = load_industry_data()
+industry_trend = calculate_industry_trend(stock_data['close'], industry_df)
+top_industries = get_top_industries(industry_trend)
+
+# 計算評分
+score_results = calculate_batch_scores(stock_codes, stock_data, tech_indicators, industry_df, top_industries)
+```
+
+#### 2. 修改表格資料組合邏輯
+
+將第 146-158 行的模擬資料替換為：
+
+```python
+# 組合完整的表格資料（使用真實股票名稱）
+scores_df = pd.DataFrame({
+    '代碼': score_results['stock_code'],
+    '名稱': [stock_data['stock_names'].get(code, code) for code in score_results['stock_code']],  # 使用真實名稱
+    '總分': score_results['total_score'],
+    '參考價': [round(stock_data['close'][code].iloc[-1], 2) if code in stock_data['close'].columns else 0
+               for code in score_results['stock_code']],
+    '成交金額(億)': [round(stock_data['amount'][code].iloc[-1] / 100000000, 2) if code in stock_data['amount'].columns else 0
+                      for code in score_results['stock_code']],
+    '月營收YoY%': [round(stock_data['revenue_yoy'][code].iloc[-1], 2) if code in stock_data['revenue_yoy'].columns else 0
+                    for code in score_results['stock_code']],
+    'EPS(季)': [round(stock_data['eps'][code].iloc[-1], 2) if code in stock_data['eps'].columns else 0
+                for code in score_results['stock_code']],
+    '評分說明': score_results['details']
+})
+```
+
+**優先級**: 🔴 高（但需等待 Agent 2 完成）
+
+---
+
+### Bug 3: Redis 功能尚未完成（UI 部分）
+
+**問題描述**:
+- `layouts/realtime_page.py` 目前只是佔位符頁面
+- 需要參考 `real_time_panel.py` 實作完整的即時戰情室功能
+
+**修復任務**:
+
+#### 方案 A: 完整實作 Redis 即時戰情室（複雜度高）
+
+參考 `real_time_panel.py` 實作以下功能：
+
+1. **DataStore 類別** (第 116-199 行)
+   - 管理即時資料
+   - 處理 tick 資料
+   - 產生 TreeMap 和 Trend 資料
+
+2. **背景執行緒** (第 249-280 行)
+   - `redis_worker()`: 監聽 Redis Pub/Sub
+   - `processing_worker()`: 定期處理資料
+
+3. **UI 元件**:
+   - 族群熱力圖 (TreeMap)
+   - 即時走勢圖
+   - 市場廣度圖 (Pie Chart)
+   - 排名圖 (Bar Chart)
+
+4. **Dash Callbacks**:
+   - 定時更新圖表 (Interval)
+   - 族群切換
+   - 股票搜尋與疊加
+
+#### 方案 B: 簡化版（建議優先實作）
+
+1. **保留佔位符頁面**，但加入功能說明
+2. **提供「查看範例」按鈕**，引導用戶參考 `real_time_panel.py`
+3. **優先完成選股評分系統**，Redis 功能可後續獨立開發
+
+**建議的佔位符頁面**:
+
+```python
+def create_realtime_page() -> html.Div:
+    return html.Div([
+        html.Div([
+            html.H1("🔴 即時戰情室", style={'color': '#d32f2f', 'margin-bottom': '10px'}),
+            html.P("即時監控台股市場動態", style={'color': '#666', 'font-size': '14px'})
+        ], style={'margin-bottom': '30px'}),
+
+        html.Div([
+            html.Div([
+                html.H3("⚠️ Redis 功能開發中", style={'color': '#ff9800', 'margin-bottom': '15px'}),
+                html.P([
+                    "此功能需要 Redis 即時資料串流支援。",
+                    html.Br(),
+                    "目前 Redis 資料源尚未啟用，請先使用「選股評分系統」功能。"
+                ], style={'color': '#666', 'line-height': '1.8'}),
+
+                html.Hr(style={'margin': '20px 0'}),
+
+                html.H4("實作指南：", style={'color': '#333', 'margin-bottom': '10px'}),
+                html.Ol([
+                    html.Li([
+                        "參考 ",
+                        html.Code("real_time_panel.py"),
+                        " 的 DataStore 類別（第 116-199 行）"
+                    ]),
+                    html.Li("實作 Redis Pub/Sub 監聽機制（第 249-266 行）"),
+                    html.Li("建立背景資料處理執行緒（第 268-274 行）"),
+                    html.Li("實作即時圖表 Callbacks（第 576-938 行）"),
+                ], style={'color': '#666', 'line-height': '2'}),
+
+                html.Hr(style={'margin': '20px 0'}),
+
+                html.H4("所需功能：", style={'color': '#333', 'margin-bottom': '10px'}),
+                html.Ul([
+                    html.Li("族群熱力圖 (TreeMap)"),
+                    html.Li("即時走勢圖"),
+                    html.Li("市場廣度圖 (Pie Chart)"),
+                    html.Li("排名長條圖 (Bar Chart)"),
+                    html.Li("自訂族群管理"),
+                ], style={'color': '#666', 'line-height': '2'}),
+
+                html.Div([
+                    html.Button(
+                        "📄 查看參考程式碼 (real_time_panel.py)",
+                        id='view-reference-btn',
+                        style={
+                            'padding': '12px 24px',
+                            'background-color': '#1976d2',
+                            'color': 'white',
+                            'border': 'none',
+                            'border-radius': '5px',
+                            'cursor': 'pointer',
+                            'font-weight': 'bold',
+                            'margin-top': '20px'
+                        }
+                    )
+                ], style={'text-align': 'center'})
+
+            ])
+        ], style={
+            'background-color': '#fff3e0',
+            'padding': '30px',
+            'border-radius': '8px',
+            'border-left': '5px solid #ff9800',
+            'max-width': '800px'
+        })
+
+    ], style={'padding': '20px'})
+```
+
+**優先級**: 🟢 低（可後續實作）
+
+**建議**:
+- 先專注完成 Bug 1（股票名稱更新）
+- Redis 功能可以作為 Phase 2 開發項目
+- 確保選股評分系統的核心功能優先完成
+
+---
+
 ## 注意事項
 
 1. ⚠️ **保留模擬資料**：在其他 Agent 完成前，使用模擬資料測試 UI

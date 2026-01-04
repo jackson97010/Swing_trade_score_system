@@ -349,6 +349,55 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ---
 
+## ⚠️ BUG 修復任務
+
+### Bug 3: Redis 功能尚未完成
+
+**問題描述**:
+- 即時戰情室頁面目前只是佔位符，缺少 Redis 即時資料串流功能
+- 需要參考 `real_time_panel.py` 的程式碼邏輯來實作
+
+**修復任務**:
+
+#### 1. 在 `app.py` 中新增 Redis 初始化（可選）
+
+如果要在主程式中初始化 Redis 連接：
+
+```python
+import redis
+import threading
+
+# Redis 設定
+REDIS_HOST = os.getenv('REDIS_HOST', '192.168.100.130')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+
+# 建立 Redis 連接（可選，也可在 realtime_page.py 中處理）
+try:
+    redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, socket_timeout=5)
+    redis_client.ping()
+    print("✅ Redis 連接成功")
+except Exception as e:
+    print(f"⚠️ Redis 連接失敗: {e}")
+    redis_client = None
+```
+
+#### 2. 更新 `.env` 檔案
+
+新增 Redis 設定：
+```env
+REDIS_HOST=192.168.100.130
+REDIS_PORT=6379
+```
+
+**注意**:
+- 主要的 Redis 實作邏輯應該在 `layouts/realtime_page.py` 中（由 Agent 3 負責）
+- 參考 `real_time_panel.py` 第 116-280 行的 DataStore 類別和背景執行緒邏輯
+- 目前 Redis 功能可以暫時跳過，優先完成選股評分系統的核心功能
+
+**優先級**: 🟢 低（可後續實作）
+
+---
+
 ## 注意事項
 
 1. ⚠️ **不要修改其他 Agent 的檔案**：僅能建立 `__init__.py` 和 `app.py`
