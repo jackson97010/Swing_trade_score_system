@@ -1,8 +1,47 @@
 """
-側邊導航欄元件
+側邊導航欄元件 - 現代化扁平設計
 """
 
 from dash import html, dcc
+from .styles import COLORS, SIDEBAR_STYLES, get_nav_item_style
+
+
+# 導航項目定義
+NAV_ITEMS = [
+    {'path': '/ranking', 'icon': '📈', 'label': '每日排行榜'},
+    {'path': '/selection', 'icon': '🎯', 'label': '選股評分系統'},
+    {'path': '/sector', 'icon': '🔥', 'label': '族群熱力圖'},
+    {'path': '/realtime', 'icon': '📡', 'label': '即時戰情室'},
+]
+
+
+def create_nav_item(item: dict, current_path: str) -> html.Div:
+    """
+    建立單個導航項目
+
+    Args:
+        item: 導航項目資訊
+        current_path: 當前頁面路徑
+
+    Returns:
+        html.Div: 導航項目元件
+    """
+    # 判斷是否為當前頁面
+    is_active = (current_path == item['path']) or \
+                (item['path'] == '/ranking' and current_path == '/')
+
+    return dcc.Link(
+        html.Div([
+            html.Span(item['icon'], style={
+                'marginRight': '12px',
+                'fontSize': '16px',
+                'opacity': '0.9' if is_active else '0.7',
+            }),
+            html.Span(item['label']),
+        ], style=get_nav_item_style(is_active)),
+        href=item['path'],
+        style={'textDecoration': 'none'},
+    )
 
 
 def create_sidebar(current_path: str = '/') -> html.Div:
@@ -16,91 +55,51 @@ def create_sidebar(current_path: str = '/') -> html.Div:
         html.Div: 側邊導航欄元件
     """
     return html.Div([
-        # 標題
-        html.H2(
-            "台股戰情室",
-            style={
-                'color': '#ffffff',
-                'margin-bottom': '30px',
-                'text-align': 'center',
-                'font-weight': 'bold'
-            }
-        ),
-
-        html.Hr(style={'border-color': '#444', 'margin': '20px 0'}),
-
-        # 導航按鈕組
+        # Logo 區域
         html.Div([
-            # 即時戰情室按鈕
-            dcc.Link(
-                html.Button(
-                    [
-                        html.Span("🔴 ", style={'font-size': '18px'}),
-                        html.Span("即時戰情室")
-                    ],
-                    style={
-                        'width': '100%',
-                        'padding': '15px',
-                        'margin-bottom': '15px',
-                        'background-color': '#d32f2f' if current_path == '/realtime' else '#424242',
-                        'color': 'white',
-                        'border': 'none',
-                        'border-radius': '8px',
-                        'cursor': 'pointer',
-                        'font-size': '16px',
-                        'font-weight': 'bold' if current_path == '/realtime' else 'normal',
-                        'transition': 'all 0.3s',
-                        'box-shadow': '0 2px 4px rgba(0,0,0,0.2)' if current_path == '/realtime' else 'none'
-                    }
-                ),
-                href='/realtime',
-                style={'text-decoration': 'none'}
-            ),
+            html.Span('📊', style={'fontSize': '22px'}),
+            html.Span('台股戰情室', style={'letterSpacing': '1px'}),
+        ], style=SIDEBAR_STYLES['logo']),
 
-            # 選股評分系統按鈕
-            dcc.Link(
-                html.Button(
-                    [
-                        html.Span("📊 ", style={'font-size': '18px'}),
-                        html.Span("選股評分系統")
-                    ],
-                    style={
-                        'width': '100%',
-                        'padding': '15px',
-                        'background-color': '#1976d2' if current_path in ['/selection', '/'] else '#424242',
-                        'color': 'white',
-                        'border': 'none',
-                        'border-radius': '8px',
-                        'cursor': 'pointer',
-                        'font-size': '16px',
-                        'font-weight': 'bold' if current_path in ['/selection', '/'] else 'normal',
-                        'transition': 'all 0.3s',
-                        'box-shadow': '0 2px 4px rgba(0,0,0,0.2)' if current_path in ['/selection', '/'] else 'none'
-                    }
-                ),
-                href='/selection',
-                style={'text-decoration': 'none'}
-            )
-        ], style={'margin-top': '20px'}),
+        # 分隔線
+        html.Div(style={
+            'height': '1px',
+            'backgroundColor': COLORS['bg_hover'],
+            'margin': '0 0 20px 0',
+        }),
 
-        # 版本資訊
+        # 導航選單
+        html.Nav([
+            create_nav_item(item, current_path)
+            for item in NAV_ITEMS
+        ], style={'flex': '1'}),
+
+        # 底部資訊
         html.Div([
-            html.Hr(style={'border-color': '#444', 'margin': '40px 0 20px 0'}),
-            html.P(
-                "v1.0.0 | 2026",
-                style={
-                    'color': '#888',
-                    'font-size': '12px',
-                    'text-align': 'center',
-                    'margin-top': '40px'
-                }
-            )
-        ], style={'position': 'absolute', 'bottom': '20px', 'width': 'calc(100% - 40px)'})
+            html.Div([
+                html.Span('更新時間', style={
+                    'fontSize': '11px',
+                    'color': COLORS['text_sidebar'],
+                    'textTransform': 'uppercase',
+                    'letterSpacing': '0.5px',
+                }),
+            ], style={'marginBottom': '4px'}),
+            html.Div(id='sidebar-update-time', children='--', style={
+                'fontSize': '13px',
+                'color': COLORS['text_sidebar_active'],
+                'fontWeight': '500',
+            }),
+            html.Div([
+                html.Span('v1.0', style={
+                    'fontSize': '11px',
+                    'color': COLORS['text_sidebar'],
+                    'marginTop': '16px',
+                    'display': 'block',
+                }),
+            ]),
+        ], style=SIDEBAR_STYLES['footer']),
 
-    ], style={
-        'position': 'relative',
-        'height': '100%'
-    })
+    ], style=SIDEBAR_STYLES['container'])
 
 
 # 匯出函數
