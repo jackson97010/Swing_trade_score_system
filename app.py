@@ -1,10 +1,40 @@
 from dash import Dash, dcc, html, Input, Output, State
-from finlab import login
+from finlab import login, data
 import os
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
+import pandas as pd
 
 # 載入環境變數
 load_dotenv()
+
+# Finlab 登入
+FINLAB_TOKEN = os.getenv('FINLAB_TOKEN')
+login(FINLAB_TOKEN)
+
+# ========== 啟動時載入資料 ==========
+print("🚀 正在載入 Finlab 資料...")
+data.set_universe('TSE_OTC')
+data.truncate_start = (datetime.now() - timedelta(days=120)).strftime('%Y-%m-%d')
+
+# 載入並快取資料
+CACHED_DATA = {
+    'close': data.get('price:收盤價'),
+    'trade_value': data.get('price:成交金額'),
+    'revenue_yoy': data.get('monthly_revenue:去年同月增減(%)'),
+}
+
+# 載入股票名稱
+from finlab.markets.tw import TWMarket
+market = TWMarket()
+CACHED_DATA['stock_names'] = market.get_asset_id_to_name()
+
+# 載入產業分類
+INDUSTRY_CSV = r'C:\Users\user\Documents\_12_BO_strategy\產業分類資料庫.csv'
+CACHED_DATA['industry_df'] = pd.read_csv(INDUSTRY_CSV)
+CACHED_DATA['industry_df']['代碼'] = CACHED_DATA['industry_df']['代碼'].astype(str)
+
+print(f"✅ 資料載入完成！最新交易日: {CACHED_DATA['close'].index[-1].strftime('%Y-%m-%d')}")
 
 # 初始化 Dash 應用
 app = Dash(
@@ -13,10 +43,6 @@ app = Dash(
     meta_tags=[{'name': 'viewport', 'content': 'width=device-width, initial-scale=1.0'}]
 )
 app.title = "台股戰情室 - 選股評分系統"
-
-# Finlab 登入
-FINLAB_API_KEY = os.getenv('FINLAB_API_KEY')
-login(FINLAB_API_KEY)
 
 # 導入 layouts
 from layouts.sidebar import create_sidebar

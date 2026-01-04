@@ -25,14 +25,30 @@
 ```bash
 conda activate my_project
 
-# 查詢最新交易日
+# 方法1: 即時計算 (較慢，每次從 API 抓資料)
 python score_calculator.py
-
-# 查詢指定日期
 python score_calculator.py 2024-12-20
+
+# 方法2: 預計算 + 快速查詢 (推薦)
+# Step 1: 預計算最近 N 天的資料 (只需執行一次)
+python precompute_scores.py 60
+
+# Step 2: 快速查詢 (從 parquet 讀取，瞬間完成)
+python query_scores.py
+python query_scores.py 2024-12-20
+python query_scores.py --list  # 列出可用日期
 ```
+
+## 檔案說明
+
+| 檔案 | 說明 |
+|------|------|
+| `score_calculator.py` | 即時計算評分 (較慢) |
+| `precompute_scores.py` | 批次預計算並存成 parquet |
+| `query_scores.py` | 從 parquet 快速查詢 |
 
 ## 依賴套件
 - finlab
 - pandas
 - numpy
+- pyarrow (for parquet)

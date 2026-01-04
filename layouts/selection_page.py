@@ -4,10 +4,7 @@
 
 from dash import html, dcc, dash_table, Input, Output, State, callback
 import pandas as pd
-
-# 注意：這些函數由 Agent 2 提供
-# from modules.data_fetcher import fetch_stock_data, calculate_technical_indicators, load_industry_data, calculate_industry_trend, get_top_industries
-# from modules.scoring import calculate_batch_scores
+import numpy as np
 
 
 def create_selection_page() -> html.Div:
@@ -106,6 +103,14 @@ def create_selection_page() -> html.Div:
     ], style={'padding': '20px'})
 
 
+def calculate_macd(close_series, fast=12, slow=26, signal=9):
+    """計算 MACD"""
+    ema_fast = close_series.ewm(span=fast, adjust=False).mean()
+    ema_slow = close_series.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    return macd_line
+
+
 # Callback: 計算評分
 @callback(
     [Output('score-table-container', 'children'),
@@ -116,9 +121,7 @@ def create_selection_page() -> html.Div:
 )
 def calculate_scores(n_clicks, stock_input):
     """
-    計算股票評分
-
-    注意：此函數需要 Agent 2 的模組完成後才能正常運作
+    計算股票評分（使用啟動時快取的資料）
     """
     if not stock_input:
         return None, html.Div("⚠️ 請輸入股票代碼", style={'color': 'orange'})
@@ -127,40 +130,140 @@ def calculate_scores(n_clicks, stock_input):
         # 解析股票代碼
         stock_codes = [code.strip() for code in stock_input.split(',')]
 
-        # 使用真實資料（Agent 2 完成 ✅）
-        from modules.data_fetcher import fetch_stock_data, calculate_technical_indicators, load_industry_data, calculate_industry_trend, get_top_industries
-        from modules.scoring import calculate_batch_scores
+        # 從 app.py 取得快取資料
+        import app
+        close = app.CACHED_DATA['close']
+        trade_value = app.CACHED_DATA['trade_value']
+        revenue_yoy = app.CACHED_DATA['revenue_yoy']
+        all_stock_names = app.CACHED_DATA['stock_names']
+        industry_df = app.CACHED_DATA['industry_df']
 
-        # 取得資料
-        stock_data = fetch_stock_data(stock_codes)
-        if stock_data is None:
-            return None, html.Div("❌ 無法取得股票資料", style={'color': 'red'})
+        print(f"📊 計算 {len(stock_codes)} 檔股票評分（使用快取資料）")
 
-        tech_indicators = calculate_technical_indicators(stock_data['close'])
+        # 目標日期 = 最新交易日
+        target_idx = len(close) - 1
 
-        # 計算產業趨勢
-        industry_df = load_industry_data()
-        industry_trend = calculate_industry_trend(stock_data['close'], industry_df)
-        top_industries = get_top_industries(industry_trend)
+        # 計算均線
+        ma10 = close.rolling(10).mean()
+        ma20 = close.rolling(20).mean()
+        ma60 = close.rolling(60).mean()
+
+        # 均線多頭排列: MA10 > MA20 > MA60
+        ma_bullish = (ma10.iloc[target_idx] > ma20.iloc[target_idx]) & \
+                     (ma20.iloc[target_idx] > ma60.iloc[target_idx])
+
+        # 計算 MACD
+        macd_scores = {}
+        for stock in stock_codes:
+            if stock not in close.columns:
+                macd_scores[stock] = False
+                continue
+            try:
+                macd_line = calculate_macd(close[stock])
+                macd_today = macd_line.iloc[target_idx]
+                macd_yesterday = macd_line.iloc[target_idx - 1]
+                macd_scores[stock] = (macd_today > 0 and macd_today > macd_yesterday)
+            except:
+                macd_scores[stock] = False
+        macd_bullish = pd.Series(macd_scores)
+
+        # 營收成長 YoY > 20%
+        revenue_latest = revenue_yoy.iloc[:target_idx+1].ffill().iloc[-1]
+        revenue_good = revenue_latest > 20
+
+        # 產業趨勢 - 過去10天漲幅前五大族群
+        close_today = close.iloc[target_idx]
+        close_10d_ago = close.iloc[max(0, target_idx - 10)]
+
+        sector_returns = {}
+        sector_stocks = {}
+        for sector in industry_df['細產業別'].unique():
+            stocks_in_sector = industry_df[industry_df['細產業別'] == sector]['代碼'].tolist()
+            stocks_in_sector = [s for s in stocks_in_sector if s in close.columns]
+            if len(stocks_in_sector) < 2:
+                continue
+            avg_price_today = close_today[stocks_in_sector].mean()
+            avg_price_10d = close_10d_ago[stocks_in_sector].mean()
+            if pd.notna(avg_price_today) and pd.notna(avg_price_10d) and avg_price_10d > 0:
+                sector_return = (avg_price_today - avg_price_10d) / avg_price_10d * 100
+                sector_returns[sector] = sector_return
+                sector_stocks[sector] = stocks_in_sector
+
+        top5_sectors = sorted(sector_returns.items(), key=lambda x: x[1], reverse=True)[:5]
+        top5_sector_names = [s[0] for s in top5_sectors]
+        hot_sector_stocks = set()
+        for sector in top5_sector_names:
+            hot_sector_stocks.update(sector_stocks.get(sector, []))
+
+        # 成交值前30大 (過去10天任一天)
+        top30_stocks = set()
+        for i in range(max(0, target_idx - 9), target_idx + 1):
+            daily_trade = trade_value.iloc[i].dropna().sort_values(ascending=False)
+            top30_today = daily_trade.head(30).index.tolist()
+            top30_stocks.update(top30_today)
 
         # 計算評分
-        score_results = calculate_batch_scores(stock_codes, stock_data, tech_indicators, industry_df, top_industries)
+        results = []
+        for stock in stock_codes:
+            if stock not in close.columns:
+                results.append({
+                    '代碼': stock,
+                    '名稱': all_stock_names.get(stock, stock),
+                    '總分': 0,
+                    '參考價': 0,
+                    '成交金額(億)': 0,
+                    '月營收YoY%': 0,
+                    '評分說明': '無資料'
+                })
+                continue
 
-        # 組合完整的表格資料（使用真實股票名稱）
-        scores_df = pd.DataFrame({
-            '代碼': score_results['stock_code'],
-            '名稱': [stock_data['stock_names'].get(code, code) for code in score_results['stock_code']],
-            '總分': score_results['total_score'],
-            '參考價': [round(stock_data['close'][code].iloc[-1], 2) if code in stock_data['close'].columns else 0
-                       for code in score_results['stock_code']],
-            '成交金額(億)': [round(stock_data['amount'][code].iloc[-1] / 100000000, 2) if code in stock_data['amount'].columns else 0
-                          for code in score_results['stock_code']],
-            '月營收YoY%': [round(stock_data['revenue_yoy'][code].iloc[-1], 2) if code in stock_data['revenue_yoy'].columns and not pd.isna(stock_data['revenue_yoy'][code].iloc[-1]) else 0
-                        for code in score_results['stock_code']],
-            'EPS(季)': [round(stock_data['eps'][code].iloc[-1], 2) if code in stock_data['eps'].columns and not pd.isna(stock_data['eps'][code].iloc[-1]) else 0
-                    for code in score_results['stock_code']],
-            '評分說明': score_results['details']
-        })
+            score = 0
+            details = []
+
+            # 技術面: 均線多頭 (+20)
+            if stock in ma_bullish.index and ma_bullish[stock]:
+                score += 20
+                details.append("均線多排(+20)")
+
+            # 技術面: MACD (+20)
+            if stock in macd_bullish.index and macd_bullish[stock]:
+                score += 20
+                details.append("MACD強勢(+20)")
+
+            # 基本面: 營收 YoY > 20% (+10)
+            if stock in revenue_good.index and revenue_good[stock]:
+                score += 10
+                details.append("營收強(+10)")
+
+            # 基本面: 熱門族群 (+10)
+            if stock in hot_sector_stocks:
+                score += 10
+                stock_sectors = industry_df[industry_df['代碼'] == stock]['細產業別'].tolist()
+                hot_sectors = [s for s in stock_sectors if s in top5_sector_names]
+                details.append(f"熱門族群(+10)")
+
+            # 基本面: 成交值前30 (+10)
+            if stock in top30_stocks:
+                score += 10
+                details.append("成交熱絡(+10)")
+
+            # 取得資料
+            price = round(close_today.get(stock, 0), 2)
+            amount = round(trade_value.iloc[target_idx].get(stock, 0) / 1e8, 2)
+            rev_yoy = round(revenue_latest.get(stock, 0), 2) if stock in revenue_latest.index else 0
+
+            results.append({
+                '代碼': stock,
+                '名稱': all_stock_names.get(stock, stock),
+                '總分': score,
+                '參考價': price,
+                '成交金額(億)': amount,
+                '月營收YoY%': rev_yoy,
+                '評分說明': ', '.join(details) if details else '無符合條件'
+            })
+
+        scores_df = pd.DataFrame(results)
+        scores_df = scores_df.sort_values('總分', ascending=False).reset_index(drop=True)
 
         # 建立表格
         table = dash_table.DataTable(
@@ -202,6 +305,8 @@ def calculate_scores(n_clicks, stock_input):
         return table, status
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return None, html.Div(
             f"❌ 計算失敗: {str(e)}",
             style={'color': 'red'}

@@ -46,9 +46,10 @@ def fetch_stock_data(stock_codes: list) -> dict:
         revenue_yoy = data.get('monthly_revenue:去年同月增減(%)')
 
         # 取得股票名稱
-        from finlab.data import TWMarket
+        from finlab.markets.tw import TWMarket
         market = TWMarket()
-        stock_names = {code: market.get_name(code) for code in stock_codes if code in market.get_stocks()}
+        all_stock_names = market.get_asset_id_to_name()
+        stock_names = {code: all_stock_names.get(code, code) for code in stock_codes}
 
         # 篩選指定股票
         close = close[stock_codes] if isinstance(close, pd.DataFrame) else close
@@ -128,6 +129,14 @@ def load_industry_data(csv_path: str = None) -> pd.DataFrame:
     
     try:
         df = pd.read_csv(csv_path, encoding='utf-8-sig')
+        # 重新命名欄位以符合程式碼預期
+        df = df.rename(columns={
+            '細產業別': 'industry',
+            '代碼': 'stock_code',
+            '商品': 'name'
+        })
+        # 確保 stock_code 是字串
+        df['stock_code'] = df['stock_code'].astype(str)
         return df
     except FileNotFoundError:
         print(f"警告: 找不到產業分類檔案 {csv_path}")

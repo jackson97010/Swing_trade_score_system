@@ -155,9 +155,9 @@ def calculate_stock_score(
 
     try:
         # 1. 技術面 - 均線多頭排列 (20分)
-        ma10 = technical_indicators['ma10'].loc[stock_code].iloc[-1] if stock_code in technical_indicators['ma10'].columns else np.nan
-        ma20 = technical_indicators['ma20'].loc[stock_code].iloc[-1] if stock_code in technical_indicators['ma20'].columns else np.nan
-        ma60 = technical_indicators['ma60'].loc[stock_code].iloc[-1] if stock_code in technical_indicators['ma60'].columns else np.nan
+        ma10 = technical_indicators['ma10'][stock_code].iloc[-1] if stock_code in technical_indicators['ma10'].columns else np.nan
+        ma20 = technical_indicators['ma20'][stock_code].iloc[-1] if stock_code in technical_indicators['ma20'].columns else np.nan
+        ma60 = technical_indicators['ma60'][stock_code].iloc[-1] if stock_code in technical_indicators['ma60'].columns else np.nan
 
         is_ma_bullish, ma_score, ma_detail = check_ma_bullish(ma10, ma20, ma60)
         score += ma_score
@@ -166,8 +166,8 @@ def calculate_stock_score(
         breakdown['ma_bullish'] = ma_score
 
         # 2. 技術面 - MACD 強勢 (20分)
-        macd_current = technical_indicators['macd'].loc[stock_code].iloc[-1] if stock_code in technical_indicators['macd'].columns else np.nan
-        macd_prev = technical_indicators['macd'].loc[stock_code].iloc[-2] if stock_code in technical_indicators['macd'].columns and len(technical_indicators['macd']) >= 2 else np.nan
+        macd_current = technical_indicators['macd'][stock_code].iloc[-1] if stock_code in technical_indicators['macd'].columns else np.nan
+        macd_prev = technical_indicators['macd'][stock_code].iloc[-2] if stock_code in technical_indicators['macd'].columns and len(technical_indicators['macd']) >= 2 else np.nan
 
         is_macd_bullish, macd_score, macd_detail = check_macd_bullish(macd_current, macd_prev)
         score += macd_score

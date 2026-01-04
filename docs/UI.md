@@ -57,4 +57,4 @@
 
 ## UI 設計
 
-這邊希望還可以有族群成交金額占比介面、族群漲跌幅分布。相關的程式碼可以參考  `C:\Users\user\Documents\_05_selectionStep1\04_sector_performance.py
+這邊希望還可以有族群成交金額占比介面、族群漲跌幅分布。相關的程式碼可以參考  `C:\Users\user\Documents\_05_selectionStep1\04_sector_performance.py`
