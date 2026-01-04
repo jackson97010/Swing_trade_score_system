@@ -5,20 +5,19 @@
 - data_fetcher: 資料取得模組 (Agent 2) ✅
 - scoring: 評分計算引擎 (Agent 2) ✅
 - charts: 圖表繪製模組 (Agent 4) ✅
+
+使用方式：
+    from modules.charts import create_candlestick_chart
+    from modules.data_fetcher import fetch_stock_data
+    from modules.scoring import calculate_score
 """
 
 __version__ = '1.0.0'
 __author__ = 'Claude AI Agents'
 
-# 模組載入 (所有 Agent 已完成 ✅)
-from .data_fetcher import fetch_stock_data
-from .scoring import calculate_score
-from .charts import create_candlestick_chart, create_simple_line_chart, create_score_distribution_chart
-
+# 模組可以單獨導入，避免循環依賴
 __all__ = [
-    'fetch_stock_data',
-    'calculate_score',
-    'create_candlestick_chart',
-    'create_simple_line_chart',
-    'create_score_distribution_chart'
+    'data_fetcher',
+    'scoring',
+    'charts'
 ]
