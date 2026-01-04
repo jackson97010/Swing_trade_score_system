@@ -6,6 +6,7 @@ from finlab import data
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
+import os
 
 # 設定資料範圍
 data.set_universe('TSE_OTC')
@@ -104,16 +105,24 @@ def calculate_technical_indicators(close_df: pd.DataFrame) -> dict:
     }
 
 
-def load_industry_data(csv_path: str = r'C:\Users\user\Documents\_12_BO_strategy\產業分類資料庫.csv') -> pd.DataFrame:
+def load_industry_data(csv_path: str = None) -> pd.DataFrame:
     """
     載入產業分類資料
 
     Args:
-        csv_path: CSV 檔案路徑
+        csv_path: CSV 檔案路徑，如未指定則使用專案目錄下的檔案
 
     Returns:
         DataFrame: 產業分類資料 (columns: ['stock_code', 'industry'])
     """
+    # 如果沒有指定路徑，使用專案根目錄下的產業分類資料庫.csv
+    if csv_path is None:
+        # 取得當前模組的目錄
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # 專案根目錄在 modules 的上一層
+        project_dir = os.path.dirname(current_dir)
+        csv_path = os.path.join(project_dir, '產業分類資料庫.csv')
+    
     try:
         df = pd.read_csv(csv_path, encoding='utf-8-sig')
         return df

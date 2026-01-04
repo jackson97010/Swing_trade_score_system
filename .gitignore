@@ -6,23 +6,32 @@ __pycache__/
 .Python
 env/
 venv/
-.venv/
+ENV/
+
+# 環境變數
+.env
+.env.local
 
 # IDE
-.idea/
 .vscode/
+.idea/
 *.swp
 *.swo
+
+# Finlab Cache
+.finlab/
+
+# Logs
+*.log
+logs/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
-# Cache
-.cache/
-
-# Environment
-.env
+# Test outputs
+test_*.html
+test_*.py
+verify_*.py
+*_STATUS.md
+*.bak

@@ -236,7 +236,7 @@ app.layout = html.Div([
 
 ## 快速開始
 
-1. 啟動環境: `conda activate my_project`
+1. 啟動環境: `conda activate Holdwin-project`
 2. 執行程式: `python app.py`
 3. 開啟瀏覽器: `http://127.0.0.1:8050/`
 
