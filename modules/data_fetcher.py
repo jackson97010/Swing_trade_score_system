@@ -31,7 +31,6 @@ def fetch_stock_data(stock_codes: list) -> dict:
             'volume': DataFrame,  # 成交量
             'amount': DataFrame,  # 成交金額
             'revenue_yoy': DataFrame,  # 月營收年增率
-            'eps': DataFrame,  # 每股盈餘
             'stock_names': dict  # 股票名稱對照表
         }
     """
@@ -45,7 +44,6 @@ def fetch_stock_data(stock_codes: list) -> dict:
 
         # 取得基本面資料
         revenue_yoy = data.get('monthly_revenue:去年同月增減(%)')
-        eps = data.get('fundamental_features:每股盈餘')
 
         # 取得股票名稱
         from finlab.data import TWMarket
@@ -62,7 +60,6 @@ def fetch_stock_data(stock_codes: list) -> dict:
             'volume': volume,
             'amount': amount,
             'revenue_yoy': revenue_yoy,
-            'eps': eps,
             'stock_names': stock_names
         }
 
