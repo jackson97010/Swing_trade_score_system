@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import os
+import pickle
+
+# 資料存儲目錄
+DATA_DIR = 'data'
 
 # 設定資料範圍
 data.set_universe('TSE_OTC')
@@ -15,7 +19,7 @@ data.truncate_start = (datetime.now() - timedelta(days=120)).strftime('%Y-%m-%d'
 
 def fetch_stock_data(stock_codes: list) -> dict:
     """
-    取得指定股票清單的所有必要資料
+    取得指定股票清單的所有必要資料（總是取得最新資料）
 
     Args:
         stock_codes: 股票代碼清單，例如 ['2330', '2454', '2603']
@@ -32,7 +36,9 @@ def fetch_stock_data(stock_codes: list) -> dict:
         }
     """
     try:
-        # 取得價格資料
+        print(f"📊 正在取得 {len(stock_codes)} 檔股票的最新資料...")
+        
+        # 取得價格資料（Finlab 會自動更新到最新日期）
         close = data.get('price:收盤價')
         volume = data.get('price:成交股數') / 1000  # 轉換為千股
         amount = data.get('price:成交金額')
@@ -198,9 +204,100 @@ def get_top_industries(industry_trend_df: pd.DataFrame, top_n: int = 5) -> list:
     return industry_trend_df.head(top_n)['industry'].tolist()
 
 
+
+# ========== Bug 2 修復：資料存儲功能 ==========
+
+def save_stock_data(stock_data: dict, filename: str = None):
+    """
+    將股票資料存儲到 data 資料夾
+
+    Args:
+        stock_data: 股票資料字典（來自 fetch_stock_data）
+        filename: 檔案名稱，預設使用日期
+    """
+    # 建立 data 資料夾
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+        print(f"✅ 建立資料夾: {DATA_DIR}")
+
+    # 預設檔案名稱：使用今天日期
+    if filename is None:
+        filename = f"stock_data_{datetime.now().strftime('%Y%m%d')}.pkl"
+
+    filepath = os.path.join(DATA_DIR, filename)
+
+    try:
+        with open(filepath, 'wb') as f:
+            pickle.dump(stock_data, f)
+        print(f"✅ 資料已存儲: {filepath}")
+    except Exception as e:
+        print(f"❌ 資料存儲失敗: {str(e)}")
+
+
+def load_stock_data(filename: str = None) -> dict:
+    """
+    從 data 資料夾載入股票資料
+
+    Args:
+        filename: 檔案名稱，預設使用今天日期
+
+    Returns:
+        dict: 股票資料字典，如果檔案不存在則返回 None
+    """
+    if filename is None:
+        filename = f"stock_data_{datetime.now().strftime('%Y%m%d')}.pkl"
+
+    filepath = os.path.join(DATA_DIR, filename)
+
+    if not os.path.exists(filepath):
+        print(f"⚠️ 檔案不存在: {filepath}")
+        return None
+
+    try:
+        with open(filepath, 'rb') as f:
+            stock_data = pickle.load(f)
+        print(f"✅ 資料已載入: {filepath}")
+        return stock_data
+    except Exception as e:
+        print(f"❌ 資料載入失敗: {str(e)}")
+        return None
+
+
+def fetch_and_save_stock_data(stock_codes: list, force_update: bool = False) -> dict:
+    """
+    取得股票資料並存儲（帶快取功能）
+
+    Args:
+        stock_codes: 股票代碼清單
+        force_update: 是否強制更新資料（忽略快取）
+
+    Returns:
+        dict: 股票資料字典
+    """
+    # 如果不強制更新，先嘗試載入今日快取
+    if not force_update:
+        cached_data = load_stock_data()
+        if cached_data is not None:
+            print("✅ 使用快取資料")
+            return cached_data
+
+    # 從 Finlab 取得最新資料
+    print("📥 從 Finlab 取得最新資料...")
+    stock_data = fetch_stock_data(stock_codes)
+
+    # 存儲資料
+    if stock_data is not None:
+        save_stock_data(stock_data)
+
+    return stock_data
+
+
 # 匯出函數
 __all__ = [
     'fetch_stock_data',
+    'fetch_and_save_stock_data',  # 新增
+    'save_stock_data',             # 新增
+    'load_stock_data',             # 新增
     'calculate_technical_indicators',
     'load_industry_data',
     'calculate_industry_trend',
