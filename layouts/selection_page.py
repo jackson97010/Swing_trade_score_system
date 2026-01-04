@@ -127,34 +127,39 @@ def calculate_scores(n_clicks, stock_input):
         # 解析股票代碼
         stock_codes = [code.strip() for code in stock_input.split(',')]
 
-        # TODO: 取消註解以下程式碼（等 Agent 2 完成）
-        # from modules.data_fetcher import fetch_stock_data, calculate_technical_indicators, load_industry_data, calculate_industry_trend, get_top_industries
-        # from modules.scoring import calculate_batch_scores
+        # 使用真實資料（Agent 2 完成 ✅）
+        from modules.data_fetcher import fetch_stock_data, calculate_technical_indicators, load_industry_data, calculate_industry_trend, get_top_industries
+        from modules.scoring import calculate_batch_scores
 
-        # # 取得資料
-        # stock_data = fetch_stock_data(stock_codes)
-        # tech_indicators = calculate_technical_indicators(stock_data['close'])
-        #
-        # # 計算產業趨勢
-        # industry_df = load_industry_data()
-        # industry_trend = calculate_industry_trend(stock_data['close'], industry_df)
-        # top_industries = get_top_industries(industry_trend)
-        #
-        # # 計算評分
-        # scores_df = calculate_batch_scores(stock_codes, stock_data, tech_indicators, industry_df, top_industries)
+        # 取得資料
+        stock_data = fetch_stock_data(stock_codes)
+        if stock_data is None:
+            return None, html.Div("❌ 無法取得股票資料", style={'color': 'red'})
 
-        # 暫時使用模擬資料
+        tech_indicators = calculate_technical_indicators(stock_data['close'])
+
+        # 計算產業趨勢
+        industry_df = load_industry_data()
+        industry_trend = calculate_industry_trend(stock_data['close'], industry_df)
+        top_industries = get_top_industries(industry_trend)
+
+        # 計算評分
+        score_results = calculate_batch_scores(stock_codes, stock_data, tech_indicators, industry_df, top_industries)
+
+        # 組合完整的表格資料（使用真實股票名稱）
         scores_df = pd.DataFrame({
-            '代碼': stock_codes,
-            '名稱': ['台積電', '聯發科', '大立光'][:len(stock_codes)],
-            '總分': [60, 50, 40][:len(stock_codes)],
-            '參考價': [580.0, 980.0, 2500.0][:len(stock_codes)],
-            '成交金額(億)': [250.5, 25.4, 15.2][:len(stock_codes)],
-            '月營收YoY%': [15.5, 25.4, -5.2][:len(stock_codes)],
-            'EPS(季)': [8.5, 15.2, 25.8][:len(stock_codes)],
-            '評分說明': ['均線多排(+20), MACD多頭(+20), 營收強勁(+10), 強勢族群(+10)',
-                         'MACD多頭(+20), 營收強勁(+10), 成交活絡(+10)',
-                         '無符合條件'][:len(stock_codes)]
+            '代碼': score_results['stock_code'],
+            '名稱': [stock_data['stock_names'].get(code, code) for code in score_results['stock_code']],
+            '總分': score_results['total_score'],
+            '參考價': [round(stock_data['close'][code].iloc[-1], 2) if code in stock_data['close'].columns else 0
+                       for code in score_results['stock_code']],
+            '成交金額(億)': [round(stock_data['amount'][code].iloc[-1] / 100000000, 2) if code in stock_data['amount'].columns else 0
+                          for code in score_results['stock_code']],
+            '月營收YoY%': [round(stock_data['revenue_yoy'][code].iloc[-1], 2) if code in stock_data['revenue_yoy'].columns and not pd.isna(stock_data['revenue_yoy'][code].iloc[-1]) else 0
+                        for code in score_results['stock_code']],
+            'EPS(季)': [round(stock_data['eps'][code].iloc[-1], 2) if code in stock_data['eps'].columns and not pd.isna(stock_data['eps'][code].iloc[-1]) else 0
+                    for code in score_results['stock_code']],
+            '評分說明': score_results['details']
         })
 
         # 建立表格
@@ -212,36 +217,36 @@ def calculate_scores(n_clicks, stock_input):
 )
 def display_stock_chart(selected_rows, table_data):
     """
-    顯示選中股票的走勢圖
-
-    注意：此函數需要 Agent 4 的圖表模組完成後才能正常運作
+    顯示選中股票的走勢圖（使用 Agent 4 的圖表模組 ✅）
     """
     if not selected_rows or not table_data:
         return {}
 
     selected_stock = table_data[selected_rows[0]]
     stock_code = selected_stock['代碼']
+    stock_name = selected_stock['名稱']
 
-    # TODO: 使用 Agent 4 的圖表模組
-    # from modules.charts import create_candlestick_chart
-    # return create_candlestick_chart(stock_code)
-
-    # 暫時返回空圖表
-    import plotly.graph_objects as go
-    fig = go.Figure()
-    fig.add_annotation(
-        text=f"圖表模組開發中... (股票: {stock_code})",
-        xref="paper", yref="paper",
-        x=0.5, y=0.5, showarrow=False,
-        font=dict(size=20, color="gray")
-    )
-    fig.update_layout(
-        title=f"{selected_stock['名稱']} ({stock_code}) 走勢圖",
-        xaxis_title="日期",
-        yaxis_title="價格",
-        height=500
-    )
-    return fig
+    # 使用 Agent 4 的圖表模組
+    try:
+        from modules.charts import create_candlestick_chart
+        return create_candlestick_chart(stock_code)
+    except Exception as e:
+        # 如果圖表生成失敗，顯示錯誤訊息
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_annotation(
+            text=f"圖表生成失敗: {str(e)}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="red")
+        )
+        fig.update_layout(
+            title=f"{stock_name} ({stock_code}) 走勢圖",
+            xaxis_title="日期",
+            yaxis_title="價格",
+            height=500
+        )
+        return fig
 
 
 # 匯出函數
